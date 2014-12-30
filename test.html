@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>At.js</title>
+    <script src="./at.js"></script>
+</head>
+<body>
+<style>
+#at {
+    min-height: 60px;
+    max-height: 100px;
+    line-height: 20px;
+    padding: 3px 8px 5px;
+    background: none;
+    font-size: 14px;
+    box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, .4);
+    border: 1px solid #999;
+    width: 400px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    word-wrap: break-word;
+}
+#at::-webkit-scrollbar {
+    width: 6px;
+}
+#at::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background-color: #e9e9e9;
+}
+#at::-webkit-scrollbar-thumb:hover {
+    background-color: #ccc;
+}
+#at::-webkit-scrollbar-thumb:active {
+    background-color: #bbb;
+}
+#at::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+#at button {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    vertical-align: baseline;
+    cursor: text;
+    display: inline-block;
+    color: #5d7895;
+}
+#at:focus {
+    outline: none;
+}
+#at_sug_main {
+    min-width: 100px;
+    border: 1px solid #999;
+    display: none;
+    position: absolute;
+    background: #fff;
+    z-index: 999;
+}
+#at_sug_main ul, #at_sug_main li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+#at_sug_main li {
+    display: block;
+    padding: 3px 5px;
+    cursor: pointer;
+}
+#at_sug_main li:hover {
+    background: #ddd;
+}
+</style>
+<div id="at2" contenteditable="true"></div>
+<textarea id="at" name="" cols="30" rows="10"></textarea>
+<script>
+var data = ['张三', '张四', '张五', '张六', '李四', 'Fuck man'];
+window.onload = function() {
+    var node = document.getElementById('at');
+    new At({node: node, data: data});
+}
+</script>
+</body>
+</html>
