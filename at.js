@@ -1,4 +1,164 @@
 (function(win) {
+    var oproto = Object.prototype.toString;
+
+    var isObject = function(o) {
+        return oproto.call(o) === "[object Object]";
+    };
+
+    var isArray = function(o) {
+        return oproto.call(o) === "[object Array]";
+    };
+
+    var extend = function() {
+        var target = isObject(arguments[0]) ? arguments[0] : {};
+        var needCopy = [].slice.call(arguments, 1);
+        var len = needCopy.length;
+        var i;
+
+        for (i = 0; i < len; i++) {
+            var tmp = needCopy[i];
+            for (var o in tmp) {
+                target[o] = tmp[o];
+            }
+        }
+
+        return target;
+    };
+
+    /**
+     * 发起一次异步请求，支持跨域
+     * 使用方法类似jQuery.ajax
+     * @param {Object} opt 具体配置信息参考prototype中的opt
+     */
+    function Ajax(opt) {
+        var option = extend({}, this.opt, opt);
+        // 初始化xhr
+        this.xhr = this.createXhrObject();
+        // 入口函数，判断发起普通get或者post请求还是跨域请求
+        this.init = function() {
+            option.dataType = option.dataType || option.datatype;
+            if (option.dataType && option.dataType.toLowerCase() === 'jsonp') {
+                this.jsonp();
+            } else {
+                this.request();
+            }
+        }
+        this.request = function() {
+            var self = this;
+            this.xhr.onreadystatechange = function() {
+                if (self.xhr.readyState !== 4) return;
+                (self.xhr.status === 200) ?
+                    (option.always ? option.always(self.xhr.responseText, self.xhr.responseXML) : option.success(self.xhr.responseText, self.xhr.responseXML)) : option.fail(self.xhr, self.xhr.status);
+            };
+
+            if (option.method.toLowerCase() !== 'post') {
+                option.url += "?" + this.stringify(option.data);
+                option.data = null;
+            } else {
+                option.data = this.stringify(option.data);
+            }
+
+            this.xhr.open(option.method, option.url, true);
+            // 加上Header信息
+            this.xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+            // 发送序列化的数据
+            this.xhr.send(option.data);
+        };
+
+        // 发起跨域请求，默认的参数为callback
+        // 注意：跨域只支持get请求
+        this.jsonp = function() {
+            var head = document.getElementsByTagName('head')[0];
+            var script = document.createElement('script');
+            script.type = "text/javascript";
+
+            var cb = "__at_xhr_" + (+new Date()) + Math.floor(Math.random() * 1000);
+            // 跨域请求中调用的前端函数
+            window[cb] = function(response) {
+                // 尽量返回标准的json格式数据
+                try {
+                    response = JSON.parse(response);
+                } catch(e) {}
+                option.success(response);
+            }
+
+            // 追加跨域标志参数
+            option.data[option.jsonp] = cb;
+            option.data = this.stringify(option.data);
+
+            if (script.onreadystatechange) {
+                script.onreadystatechange = loadedListener;
+            } else {
+                script.onload = loadedListener;
+            }
+
+            script.src = option.url + "?" + option.data;
+            head.appendChild(script);
+
+            // 跨域请求完成后的回调函数
+            function loadedListener() {
+                head.removeChild(script);
+                try {
+                    delete window[cb];
+                } catch(e) { 
+                    window[cb] = undefined;
+                }
+            }
+        }
+
+        this.init();
+    }
+
+    Ajax.prototype = {
+        constructor: Ajax,
+        opt: {
+            // 异步请求的地址
+            url: '',
+            // 异步请求方法：post、get
+            method: 'post',
+            // 需要传递的数据，类型为Object
+            data: null,
+            // 返回的数据类型
+            // 如果跨域，则用jsonp
+            dataType: 'json',
+            // 跨域请求中和服务器的交互字段
+            jsonp: 'callback',
+            // 请求成功的响应函数
+            success: function() {},
+            // 请求失败后的响应函数
+            fail: function() {},
+            // 不管成功或者失败都会执行的函数
+            always: null
+        },
+        // 单例模式的构造xhr函数
+        // 立即执行，在生命周期内不会再针对浏览器特性进行判断
+        createXhrObject: function() {
+            var methods = [
+                function() { return new XMLHttpRequest(); },
+                function() { return new ActiveXObject("Msxml2.XMLHTTP"); },
+                function() { return new ActiveXObject("Microsoft.XMLHTTP"); }
+            ];
+
+            for (var i = 0, len = methods.length; i < len; i++) {
+                try {
+                    methods[i];
+                } catch(e) {
+                    continue;
+                }
+
+                this.createXhrObject = methods[i];
+                return methods[i];
+                //break;
+            }
+        }(),
+        // 序列化Object数据
+        stringify: function(obj) {
+            return JSON.stringify(obj).replace(/["{}]/g, "")
+                                      .replace(/\b:\b/g, "=")
+                                      .replace(/\b,\b/g, "&");
+        }
+    }
+
     /**
      * 添加事件
      * @param {HTML-Object} el
@@ -205,7 +365,7 @@
         // 无结果下的最大预测数量
         var MAX_PREDICT_NUMS = 10;
         // 合并后的参数
-        this.opt = this.extend({}, this.params, options);
+        this.opt = extend({}, this.params, options);
         // 计时器
         this.sugDomtimer = null;
         this.checkTimer = null;
@@ -307,9 +467,12 @@
             // 是异步接口
             if (typeof this.sugContent === 'string') {
                 // 如果在cache中则直接返回
-                if (this.__cache[prefix]) return this.__cache[prefix];
+                if (this.getCacheData(prefix)) return this.getCacheData(prefix);
                 // TODO 异步接口
-            } else if (this.oproto.call(this.sugContent) === "[object Array]") {
+                // 注意：该接口未经过测试！！！
+                // 目前已知的问题：第一次不会触发sug；因为接下来的内容只cache了数据而没有返回
+                this.opt.getSugData && this.opt.getCacheData(prefix, this.setCacheData);
+            } else if (oproto.call(this.sugContent) === "[object Array]") {
             // 目前只支持数组类型的数据
                 // 模糊匹配
                 // 可配置的精确前缀匹配
@@ -322,6 +485,17 @@
             }
 
             return _sugs;
+        }
+        this.setCacheData = function(prefix, data) {
+            try {
+                if (typeof data === 'string') {
+                    data = JSON.parse(data);
+                }
+            } catch(e) {}
+            this.__cache[prefix] = data;
+        }
+        this.getCacheData = function(prefix) {
+            return this.__cache[prefix];
         }
         this.hideSugDom = function() {
             this.status = OUT_OF_AT;
@@ -502,29 +676,21 @@
             enableCopy: false,
             // 为sug提供的数据源
             // 可直接提供一个url，sug异步获取内容
-            data: []
-        },
-        extend: function() {
-            var target = this.isObject(arguments[0]) ? arguments[0] : {};
-            var needCopy = [].slice.call(arguments, 1);
-            var len = needCopy.length;
-            var i;
-
-            for (i = 0; i < len; i++) {
-                var tmp = needCopy[i];
-                for (var o in tmp) {
-                    target[o] = tmp[o];
-                }
+            data: [],
+            /*
+            // 如果需要异步获取sug数据，则自行提供一个函数；预留一个调用回调函数的接口
+            getSugData: function(prefix, cb) {
+                var ajax = new Ajax({
+                    url: '',
+                    method: 'get',
+                    data: {},
+                    success: function(msg) {
+                        cb(prefix, msg);
+                    }
+                });
             }
-
-            return target;
-        },
-        oproto: Object.prototype.toString,
-        isObject: function(o) {
-            return this.oproto.call(o) === "[object Object]";
-        },
-        isArray: function(o) {
-            return this.oproto.call(o) === "[object Array]";
+            */
+            getSugData: null
         },
         format: function(tpl) {
             var args = [].slice.call(arguments, 1); 
@@ -543,6 +709,7 @@
         win.trim = trim;
         win.addEvent = addEvent;
         win.triggerEvent = triggerEvent;
+        win.Ajax = Ajax;
     }
 })(this);
 
