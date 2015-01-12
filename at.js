@@ -25,6 +25,19 @@
         return target;
     };
 
+    var createStyle = function(str) {
+        var style = document.createElement('style');
+        // this is important for ie678
+        style.setAttribute('type', 'text/css');
+        if (style.styleSheet) {
+            style.styleSheet.cssText = str;
+        } else {
+            var cssText = document.createTextNode(str);
+            style.appendChild(cssText);
+        }
+        document.body.appendChild(style);
+    };
+
     /**
      * 发起一次异步请求，支持跨域
      * 使用方法类似jQuery.ajax
@@ -379,6 +392,8 @@
         this.__cache = {};
         // 如果是线下数据
         this.sugContent = this.opt.data;
+        // 最大的显示长度
+        this.max_list = this.opt.max_list || 10;
         // 入口函数
         this.init = function() {
             this.createStyle();
@@ -389,22 +404,27 @@
         // TODO 把style标签中的样式全部挪到这里
         this.createStyle = function() {
             var css = [
-                '#at_sug_main{}'
+                '.at_sug_con {min-width:100px;display:none;position:absolute;border:1px solid #ccc;background:#fff;z-index:100;font-size:13px;color:#666;}',
+                '.at_sug_con ul, .at_sug_con li{margin:0;padding:0;list-style:none}',
+                '.at_sug_con li{display:block;padding:3px 5px;cursor:pointer}',
+                '.at_sug_con li.hover{background:#e5e5e5}'
             ].join('');
+
+            createStyle(css);
         }
         // 构件DOM结构
         this.createDom = function() {
             // create sug dom
             var sug = document.createElement('div');
-            sug.id = 'at_sug_main';
+            sug.className = 'at_sug_con';
             
             var ul = document.createElement('ul');
-            ul.id = "at_sug_list";
 
             sug.appendChild(ul);
 
             this.sugDom = sug;
-            document.body.appendChild(sug);
+            //document.body.appendChild(sug);
+            document.getElementById('at_sug_container').appendChild(sug);
             // contenteditable
             if (this.opt.node.nodeName.toUpperCase() === 'DIV' ) {
                 this.opt.node.setAttribute('contenteditable', 'true');
@@ -439,7 +459,9 @@
                     this.updateSugDom(datas);
                 // 只输入了@在等待预测
                 } else {
-                    this.updateSugDom(this.sugContent);
+                    // TODO 此处可用于top query
+                    datas = this.sugContent.length > this.max_list ? this.sugContent.slice(0, this.max_list) : this.sugContent;
+                    this.updateSugDom(datas);
                 }
             } else {
                 this.hideSugDom();
@@ -456,10 +478,10 @@
                 html += this.format(tpl, "按空格直接输入");
             }
 
-            document.getElementById('at_sug_list').innerHTML = html;
-            var offset = this.getCursorOffset();
-            this.sugDom.style.left = offset.left + 'px';
-            this.sugDom.style.top = offset.top + 'px';
+            this.sugDom.getElementsByTagName('ul')[0].innerHTML = html;
+
+            this.setSugDomPosition();
+
             this.sugDom.style.display = 'block';
             this.status = IN_AT_STATUS;
         }
@@ -483,6 +505,7 @@
                     }
                 }
             }
+            _sugs.length = Math.min(_sugs.length, this.max_list);
 
             return _sugs;
         }
@@ -574,6 +597,9 @@
             };
         }
         this.setSugDomPosition = function(pos) {
+            var offset = this.getCursorOffset();
+            this.sugDom.style.left = offset.left + 'px';
+            this.sugDom.style.top = offset.top + 'px';
         }
         this.bindEv = function() {
             var self = this;
@@ -657,6 +683,23 @@
                 self.showSugDom();
             });
 
+            addEvent(this.sugDom, 'mouseover', function(e) {
+                var target = e.srcElement ? e.srcElement : e.target;
+                if (target.nodeName.toLowerCase() === 'li') {
+                    if (target.className !== 'hover') {
+                        target.className = 'hover';
+                    }
+                }
+            });
+
+            // should mouseout other than mouseleave
+            addEvent(this.sugDom, 'mouseout', function(e) {
+                var target = e.srcElement ? e.srcElement : e.target;
+                if (target.nodeName.toLowerCase() === 'li') {
+                    target.className = '';
+                }
+            });
+
             addEvent(this.opt.node, 'blur', function() {
                 // 太特么机智了！！！
                 // 彻底解决了点击sugDom就触发blur而不触发sugDom上click事件的问题
@@ -673,6 +716,8 @@
         constructor: At,
         params: {
             node: null,
+            // 预测的最大显示长度
+            max_list: 10,
             enableCopy: false,
             // 为sug提供的数据源
             // 可直接提供一个url，sug异步获取内容
@@ -700,17 +745,7 @@
         }
     }
 
-    // FOR TEST
-    if (true) {
-        win.At = At;
-        //win.placeCaretAtEnd = placeCaretAtEnd;
-        win.getCursorPosition = getCursorPosition;
-        win.setCursorPosition = setCursorPosition;
-        win.trim = trim;
-        win.addEvent = addEvent;
-        win.triggerEvent = triggerEvent;
-        win.Ajax = Ajax;
-    }
+    window.At = At;
 })(this);
 
 // useage
@@ -718,3 +753,6 @@
 var node = document.getElementById('test');
 new At({node: node, data: ['a', 'b', 'c']});
 */
+
+// TODO LIST
+// 自动位置适应
