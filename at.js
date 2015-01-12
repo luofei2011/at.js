@@ -745,7 +745,18 @@
         }
     }
 
-    window.At = At;
+
+    // commonJS
+    if (typeof module === "object" && module && typeof module.exports === "object") {
+        module.exports = At;
+    } else {
+        window.At = At;
+
+        if (typeof define === 'function' && define.amd) {
+            define('at', [], function() { return At; });
+        }
+    }
+
 })(this);
 
 // useage
