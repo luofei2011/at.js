@@ -235,7 +235,7 @@
      */
     var getOffsetTop = function(e) {
         var offset = e.offsetTop;
-        if (e.offsetParent != null) offset += getOffsetLeft(e.offsetParent);
+        if (e.offsetParent != null) offset += getOffsetTop(e.offsetParent);
 
         return offset;
     }
@@ -475,7 +475,13 @@
                     html += this.format(tpl, data[i]);
                 }
             } else {
-                html += this.format(tpl, "按空格直接输入");
+                // 如果在预测状态，但是没有预测结果的情况下；给出相应提示
+                if (this.status == IN_AT_STATUS) {
+                    html += this.format(tpl, "按空格直接输入");
+                } else {
+                    // 否则不响应任何信息；此处用于blur之后再点击鼠标聚焦后的预测情况
+                    return;
+                }
             }
 
             this.sugDom.getElementsByTagName('ul')[0].innerHTML = html;
@@ -659,9 +665,17 @@
             addEvent(this.opt.node, 'data_insert', function(e) {
                 var data = e.data;
                 var caretPos = getCursorPosition(this);
-                this.value = this.value + data + ' ';
+                console.log(caretPos);
 
-                setCursorPosition(this, this.value.length);
+                var _pre = this.value.substr(0, caretPos.start);
+                var _last = this.value.substr(caretPos.start);
+
+                var atPos = _pre.lastIndexOf('@');
+                _pre = _pre.substr(0, atPos + 1) + data + ' ';
+
+                this.value = _pre + _last;
+
+                setCursorPosition(this, _pre.length);
             });
 
             addEvent(this.sugDom, 'click', function(e) {
