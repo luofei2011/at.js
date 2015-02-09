@@ -1,3 +1,7 @@
+#### 试用
+
+[https://cdn.rawgit.com/luofei2011/at.js/master/test.html](https://cdn.rawgit.com/luofei2011/at.js/master/test.html)
+
 #### 介绍
 类似新浪微博和QQ空间的@某人的功能
 
